@@ -2,6 +2,10 @@ import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { getInput } from './input';
 
+/**
+ * https://www.freecodecamp.org/news/build-your-first-javascript-github-action/
+ */
+
 const main = async () => {
     try {
         const inputs = getInput();
