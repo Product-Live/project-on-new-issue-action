@@ -9,7 +9,6 @@ interface IInput {
 }
 
 export function getInput(): IInput {
-    console.log('env', process.env);
     if (process.env.NODE_ENV === 'dev') {
         return {
             owner: process.env.owner,
