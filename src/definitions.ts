@@ -5,6 +5,7 @@ export type GithubLabel = {
 
 export type GithubIssue = {
     id: string;
+    title: string;
     body: string;
     labels: GithubLabel[];
 }

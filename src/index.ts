@@ -52,6 +52,7 @@ async function getIssue(octokit: InstanceType<typeof GitHub>, owner: string, rep
     return {
         id: res.organization.repository.issue.id,
         body: res.organization.repository.issue.body,
+        title: res.organization.repository.issue.title,
         labels: res.organization.repository.issue.labels.nodes
     };
 }

@@ -119,15 +119,16 @@ export class IssueUtils {
     }
 
     private getAdditionalInfos(): { typeContains: string; origin?: string; criticity?: string; impact?: string; confidence?: string } | undefined {
-        if (this.issue.labels.some((label) => label.name === 'Bug')) {
+        console.log('issue detaisl', this.issue);
+        if (this.issue.title.indexOf('🐞') >=0) {
             return this.getIssueBugInfo();
-        } else if (this.issue.labels.some((label) => label.name === 'Technical improvement')) {
+        } else if (this.issue.title.indexOf('🛠️') >= 0) {
             return this.getIssueTechnicalImprovementInfo();
-        } else if (this.issue.labels.some((label) => label.name === 'Feature flag')) {
+        } else if (this.issue.title.indexOf('🚩') >= 0) {
             return this.getIssueFeatureFlagInfo();
-        } else if (this.issue.labels.some((label) => label.name === 'User story')) {
+        } else if (this.issue.title.indexOf('💡') >= 0) {
             return this.getIssueUserStoryInfo();
-        } else if (this.issue.labels.some((label) => label.name === 'Deployment')) {
+        } else if (this.issue.title.indexOf('Deployment') >= 0) {
             return {
                 typeContains: 'Devops'
             }
