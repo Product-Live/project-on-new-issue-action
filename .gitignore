@@ -2,4 +2,4 @@
 .idea
 **/node_modules
 
-action-on-new-products-improvement-issue/.env
+.env
