@@ -9167,9 +9167,228 @@ class Constants {
 Constants.PROJECT_TITLE = 'Product-Live';
 Constants.PROJECT_FIELD_ISSUE_NUMBER = 'Issue Number';
 Constants.PROJECT_FIELD_CREATION_DATE = 'Creation date';
+Constants.PROJECT_FIELD_STATUS = 'Status';
+Constants.PROJECT_FIELD_TYPE = 'Type';
+Constants.PROJECT_FIELD_CRITICITY = 'Criticity';
+Constants.PROJECT_FIELD_ORIGIN = 'Origin';
+Constants.PROJECT_FIELD_IMPACT = 'Impact';
+Constants.PROJECT_FIELD_CONFIDENCE = 'Confidence';
+
+;// CONCATENATED MODULE: ./src/Issue.utils.ts
+var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+
+class IssueUtils {
+    constructor(octokit, projectId, issue) {
+        this.octokit = octokit;
+        this.projectId = projectId;
+        this.issue = issue;
+    }
+    setProjectFieldValue(itemId, fieldId, value) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const mutation = `mutation {
+        updateProjectV2ItemFieldValue(input: {
+            projectId: "${this.projectId}",
+            itemId: "${itemId}",
+            fieldId: "${fieldId}",
+            value: {${Object.keys(value)[0]}: ${JSON.stringify(value[Object.keys(value)[0]])}}
+        }) {
+            clientMutationId
+        }
+    }`;
+            yield this.octokit.graphql(mutation);
+        });
+    }
+    addIssueToProject() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const res = yield this.octokit.graphql(`
+        mutation {
+            addProjectV2ItemById(input: {projectId: "${this.projectId}", contentId: "${this.issue.id}"}) {
+                item {
+                    id
+                    type
+                    content {
+                        ... on Issue {
+                            id
+                            number
+                            createdAt
+                        }
+                    }
+                }
+            }
+        }`);
+            const projectItemId = res.addProjectV2ItemById.item.id;
+            const issueNumber = res.addProjectV2ItemById.item.content.number;
+            const issueCreatedAt = res.addProjectV2ItemById.item.content.createdAt;
+            const projectFields = yield this.octokit.graphql(`query {
+            node(id: "${this.projectId}") {
+                ... on ProjectV2 {
+                    fields(first: 100) {
+                        nodes {
+                            ... on ProjectV2Field {
+                                id
+                                name
+                            }
+                            ... on ProjectV2IterationField {
+                                id
+                                name
+                            }
+                            ... on ProjectV2SingleSelectField {
+                                id
+                                name
+                                options {
+                                    name
+                                    id
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }`);
+            const fieldIssueNumber = projectFields.node.fields.nodes.find((n) => n.name === Constants.PROJECT_FIELD_ISSUE_NUMBER);
+            if (fieldIssueNumber) {
+                console.log('Setting issue number in project');
+                yield this.setProjectFieldValue(projectItemId, fieldIssueNumber.id, { text: issueNumber.toString() });
+            }
+            const fieldCreationDate = projectFields.node.fields.nodes.find((n) => n.name === Constants.PROJECT_FIELD_CREATION_DATE);
+            if (fieldCreationDate) {
+                console.log('Setting issue creation date in project');
+                yield this.setProjectFieldValue(projectItemId, fieldCreationDate.id, { date: issueCreatedAt });
+            }
+            const statusField = projectFields.node.fields.nodes.find((n) => n.name === Constants.PROJECT_FIELD_STATUS);
+            if (statusField) {
+                console.log('Setting issue status in project');
+                yield this.setProjectFieldValue(projectItemId, statusField.id, { singleSelectOptionId: statusField.options.find((opt) => opt.name === 'To Study').id });
+            }
+            const additionalInfos = this.getAdditionalInfos();
+            if (additionalInfos) {
+                const typeField = projectFields.node.fields.nodes.find((n) => n.name === Constants.PROJECT_FIELD_TYPE);
+                const originField = projectFields.node.fields.nodes.find((n) => n.name === Constants.PROJECT_FIELD_ORIGIN);
+                const criticityField = projectFields.node.fields.nodes.find((n) => n.name === Constants.PROJECT_FIELD_CRITICITY);
+                const impactField = projectFields.node.fields.nodes.find((n) => n.name === Constants.PROJECT_FIELD_IMPACT);
+                const confidenceField = projectFields.node.fields.nodes.find((n) => n.name === Constants.PROJECT_FIELD_CONFIDENCE);
+                console.log('found additional infos', additionalInfos);
+                if (typeField && additionalInfos.typeContains) {
+                    console.log('Setting issue type in project');
+                    yield this.setProjectFieldValue(projectItemId, typeField.id, { singleSelectOptionId: typeField.options.find((opt) => opt.name.indexOf(additionalInfos.typeContains) >= 0).id });
+                }
+                if (typeField && additionalInfos.origin) {
+                    console.log('Setting issue origin in project');
+                    yield this.setProjectFieldValue(projectItemId, originField.id, { singleSelectOptionId: originField.options.find((opt) => opt.name.indexOf(additionalInfos.origin) >= 0).id });
+                }
+                if (criticityField && additionalInfos.criticity) {
+                    console.log('Setting issue criticity in project');
+                    yield this.setProjectFieldValue(projectItemId, criticityField.id, { singleSelectOptionId: criticityField.options.find((opt) => opt.name.indexOf(additionalInfos.criticity) >= 0).id });
+                }
+                if (impactField && additionalInfos.impact) {
+                    console.log('Setting issue impact in project');
+                    yield this.setProjectFieldValue(projectItemId, impactField.id, { singleSelectOptionId: impactField.options.find((opt) => opt.name.indexOf(additionalInfos.impact) >= 0).id });
+                }
+                if (confidenceField && additionalInfos.confidence) {
+                    console.log('Setting issue confidence in project');
+                    yield this.setProjectFieldValue(projectItemId, confidenceField.id, { singleSelectOptionId: confidenceField.options.find((opt) => opt.name.indexOf(additionalInfos.confidence) >= 0).id });
+                }
+            }
+        });
+    }
+    getAdditionalInfos() {
+        console.log('issue detaisl', this.issue);
+        if (this.issue.title.indexOf('🐞') >= 0) {
+            return this.getIssueBugInfo();
+        }
+        else if (this.issue.title.indexOf('🛠️') >= 0) {
+            return this.getIssueTechnicalImprovementInfo();
+        }
+        else if (this.issue.title.indexOf('🚩') >= 0) {
+            return this.getIssueFeatureFlagInfo();
+        }
+        else if (this.issue.title.indexOf('💡') >= 0) {
+            return this.getIssueUserStoryInfo();
+        }
+        else if (this.issue.title.indexOf('Deployment') >= 0) {
+            return {
+                typeContains: 'Devops'
+            };
+        }
+    }
+    getIssueBugInfo() {
+        return {
+            origin: this.getOrigin(),
+            criticity: this.getCriticity(),
+            typeContains: 'Bug'
+        };
+    }
+    getIssueTechnicalImprovementInfo() {
+        return {
+            typeContains: 'Task',
+            origin: 'Dév'
+        };
+    }
+    getIssueFeatureFlagInfo() {
+        return {
+            origin: this.getOrigin(),
+            typeContains: 'Task'
+        };
+    }
+    getIssueUserStoryInfo() {
+        return {
+            origin: this.getOrigin(),
+            criticity: this.getCriticity(),
+            confidence: this.getConfidence(),
+            impact: this.getImpact(),
+            typeContains: 'User Story'
+        };
+    }
+    getOrigin() {
+        const match = this.issue.body.match(/Origine[ ]?: ([^\n]*)/m);
+        let origin = match ? match[1].trim() : undefined;
+        if (origin === 'CS') {
+            origin = 'Customer Success';
+        }
+        return origin;
+    }
+    getImpact() {
+        const impactMap = {
+            'Très haut': 'Very High',
+            'Haut': 'High',
+            'Moyen': 'Medium',
+            'Bas': 'Low'
+        };
+        const match = this.issue.body.match(/\*\*impact\*\*[^?]*\?[ ]?: ([^\n]*)/m);
+        return match ? impactMap[match[1].trim()] : undefined;
+    }
+    getConfidence() {
+        const confidenceMap = {
+            'Très haut': 'Very High',
+            'Haut': 'High',
+            'Moyen': 'Medium',
+            'Bas': 'Low'
+        };
+        const match = this.issue.body.match(/\*\*niveau de confiance\*\*[^?]*\?[ ]?: ([^\n]*)/m);
+        return match ? confidenceMap[match[1].trim()] : undefined;
+    }
+    getCriticity() {
+        const criticityMap = {
+            Bloquant: 'Blocker',
+            Critique: 'Critical',
+            Majeur: 'Major',
+            Mineur: 'Minor'
+        };
+        const match = this.issue.body.match(/\*\*criticité\*\*[^?]*\?[ ]?: ([^\n]*)/m);
+        return match ? criticityMap[match[1].trim()] : undefined;
+    }
+}
 
 ;// CONCATENATED MODULE: ./src/index.ts
-var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+var src_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -9182,8 +9401,9 @@ var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argume
 
 
 
+
 function getProject(octokit, owner) {
-    return __awaiter(this, void 0, void 0, function* () {
+    return src_awaiter(this, void 0, void 0, function* () {
         const projects = yield octokit.graphql({
             query: `{
                 organization(login: "${owner}") {
@@ -9205,7 +9425,7 @@ function getProject(octokit, owner) {
     });
 }
 function getIssue(octokit, owner, repo, issue_number) {
-    return __awaiter(this, void 0, void 0, function* () {
+    return src_awaiter(this, void 0, void 0, function* () {
         const res = yield octokit.graphql(` query {
         organization(login: "${owner}") {
             repository(name: "${repo}") {
@@ -9214,119 +9434,37 @@ function getIssue(octokit, owner, repo, issue_number) {
                 issue(number: ${issue_number}) {
                     id
                     title
-                }
-            }
-        }
-    }`);
-        return res.organization.repository.issue;
-    });
-}
-function setProjectFieldValue(octokit, projectId, itemId, fieldId, value) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const mutation = `mutation {
-        updateProjectV2ItemFieldValue(input: {
-            projectId: "${projectId}",
-            itemId: "${itemId}",
-            fieldId: "${fieldId}",
-            value: {${Object.keys(value)[0]}: ${JSON.stringify(value[Object.keys(value)[0]])}}
-        }) {
-            clientMutationId
-        }
-    }`;
-        yield octokit.graphql(mutation);
-    });
-}
-function addIssueToProject(octokit, projectId, issueId) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const res = yield octokit.graphql(`
-        mutation {
-            addProjectV2ItemById(input: {projectId: "${projectId}", contentId: "${issueId}"}) {
-                item {
-                    id
-                    type
-                    content {
-                        ... on Issue {
-                            id
-                            number
-                            createdAt
-                        }
-                    }
-                }
-            }
-        }`);
-        const projectItemId = res.addProjectV2ItemById.item.id;
-        const issueNumber = res.addProjectV2ItemById.item.content.number;
-        const issueCreatedAt = res.addProjectV2ItemById.item.content.createdAt;
-        const projectFields = yield octokit.graphql(`query {
-        node(id: "${projectId}") {
-            ... on ProjectV2 {
-                fields(first: 100) {
-                    nodes {
-                        ... on ProjectV2Field {
-                            id
+                    body
+                    labels(first: 20) {
+                        nodes {
                             name
-                        }
-                        ... on ProjectV2IterationField {
                             id
-                            name
-                        }
-                        ... on ProjectV2SingleSelectField {
-                            id
-                            name
                         }
                     }
                 }
             }
         }
     }`);
-        const fieldIssueNumber = projectFields.node.fields.nodes.find((n) => n.name === Constants.PROJECT_FIELD_ISSUE_NUMBER);
-        if (fieldIssueNumber) {
-            console.log('Setting issue number in project');
-            yield setProjectFieldValue(octokit, projectId, projectItemId, fieldIssueNumber.id, { text: issueNumber.toString() });
-        }
-        const fieldCreationDate = projectFields.node.fields.nodes.find((n) => n.name === Constants.PROJECT_FIELD_CREATION_DATE);
-        if (fieldCreationDate) {
-            console.log('Setting issue creation date in project');
-            yield setProjectFieldValue(octokit, projectId, projectItemId, fieldCreationDate.id, { date: issueCreatedAt });
-        }
+        return {
+            id: res.organization.repository.issue.id,
+            body: res.organization.repository.issue.body,
+            title: res.organization.repository.issue.title,
+            labels: res.organization.repository.issue.labels.nodes
+        };
     });
 }
 /**
  * https://www.freecodecamp.org/news/build-your-first-javascript-github-action/
  */
-const main = () => __awaiter(void 0, void 0, void 0, function* () {
+const main = () => src_awaiter(void 0, void 0, void 0, function* () {
     try {
         const inputs = getInput();
         console.log(inputs);
-        /**
-         * Now we need to create an instance of Octokit which will use to call
-         * GitHub's REST API endpoints.
-         * We will pass the token as an argument to the constructor. This token
-         * will be used to authenticate our requests.
-         * You can find all the information about how to use Octokit here:
-         * https://octokit.github.io/rest.js/v18
-         **/
         const octokit = github.getOctokit(inputs.token);
         const project = yield getProject(octokit, inputs.owner);
-        console.log('project', project);
         const issue = yield getIssue(octokit, inputs.owner, inputs.repo, inputs.issue_number);
-        console.log('issue I_kwDOE0qG185NimFE', issue);
-        yield addIssueToProject(octokit, project.id, issue.id);
-        /*const res = await octokit.graphql({
-            query: `{
-                __type(name:"Organization") {
-                    fields {
-                        name,
-                        description
-                    }
-                }
-            }`
-        });*
-
-         */
-        /*organization(login: "${inputs.owner}") {
-          projectsV2(first: 20) {...}
-        }*/
+        const issueUtils = new IssueUtils(octokit, project.id, issue);
+        yield issueUtils.addIssueToProject();
     }
     catch (error) {
         core.setFailed(error.message);
