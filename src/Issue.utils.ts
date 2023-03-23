@@ -1,11 +1,17 @@
 import {GitHub} from '@actions/github/lib/utils';
 import {GraphQlQueryResponseData} from '@octokit/graphql';
-import {Constants} from './constants';
+import {Constants, IssueCriticality, IssueOrigin, IssueType} from './constants';
 import {GithubIssue, ProjectFieldValue} from './definitions';
 
 export class IssueUtils {
 
+    public type: IssueType;
+
     constructor(readonly octokit: InstanceType<typeof GitHub>, readonly projectId: string, readonly issue: GithubIssue) {
+    }
+
+    private setType(type: IssueType): void {
+        this.type = type;
     }
 
     private async setProjectFieldValue(itemId: string, fieldId: string, value: ProjectFieldValue): Promise<void> {
@@ -22,7 +28,7 @@ export class IssueUtils {
         await this.octokit.graphql(mutation);
     }
 
-    async addIssueToProject(): Promise<void> {
+    async addIssueToProjectAndFillFields(): Promise<void> {
         const res: GraphQlQueryResponseData = await this.octokit.graphql(`
         mutation {
             addProjectV2ItemById(input: {projectId: "${this.projectId}", contentId: "${this.issue.id}"}) {
@@ -69,6 +75,7 @@ export class IssueUtils {
                 }
             }
         }`);
+        
         const fieldIssueNumber = projectFields.node.fields.nodes.find((n) => n.name === Constants.PROJECT_FIELD_ISSUE_NUMBER);
         if (fieldIssueNumber) {
             console.log('Setting issue number in project');
@@ -86,7 +93,6 @@ export class IssueUtils {
             console.log('Setting issue status in project');
             await this.setProjectFieldValue(projectItemId, statusField.id, { singleSelectOptionId: statusField.options.find((opt) => opt.name === 'To Study').id });
         }
-
         const additionalInfos = this.getAdditionalInfos();
         if (additionalInfos) {
             const typeField = projectFields.node.fields.nodes.find((n) => n.name === Constants.PROJECT_FIELD_TYPE);
@@ -118,20 +124,30 @@ export class IssueUtils {
         }
     }
 
-    private getAdditionalInfos(): { typeContains: string; origin?: string; criticity?: string; impact?: string; confidence?: string } | undefined {
-        console.log('issue detaisl', this.issue);
+    public guessIssueType(): void {
         if (this.issue.title.indexOf('🐞') >=0) {
-            return this.getIssueBugInfo();
+            this.setType(IssueType.BUG);
         } else if (this.issue.title.indexOf('🛠️') >= 0) {
-            return this.getIssueTechnicalImprovementInfo();
+            this.setType(IssueType.TASK);
         } else if (this.issue.title.indexOf('🚩') >= 0) {
-            return this.getIssueFeatureFlagInfo();
+            this.setType(IssueType.TASK);
         } else if (this.issue.title.indexOf('💡') >= 0) {
-            return this.getIssueUserStoryInfo();
+            this.setType(IssueType.USER_STORY);
+        } else if (this.issue.title.indexOf('📚') >= 0) {
+            this.setType(IssueType.EPIC);
         } else if (this.issue.title.indexOf('Deployment') >= 0) {
-            return {
-                typeContains: 'Devops'
-            }
+            this.setType(IssueType.DEVOPS);
+        } else {
+            this.setType(IssueType.UNKNOWN);
+        }
+    }
+
+    public getAdditionalInfos(): { typeContains: string; origin?: string; criticity?: string; impact?: string; confidence?: string } | undefined {
+        this.guessIssueType();
+        return {
+            origin: this.getOrigin(),
+            criticity: this.getCriticity(),
+            typeContains: 'Bug'
         }
     }
 
@@ -167,11 +183,24 @@ export class IssueUtils {
         }
     }
 
+    private getIssueEpicInfo(): { typeContains: string; origin?: string, criticity?: string; impact?: string; confidence?: string } {
+        return {
+            origin: this.getOrigin(),
+            criticity: this.getCriticity(),
+            confidence: this.getConfidence(),
+            impact: this.getImpact(),
+            typeContains: 'Epic'
+        }
+    }
+
     private getOrigin(): string | undefined {
         const match = this.issue.body.match(/Origine[ ]?: ([^\n]*)/m);
         let origin = match ? match[1].trim() : undefined;
         if (origin === 'CS') {
-            origin = 'Customer Success';
+            origin = IssueOrigin.CUSTOMER_SUCCESS;
+        }
+        if (!origin) {
+            origin = IssueOrigin.PRODUCT;
         }
         return origin
     }
@@ -205,7 +234,12 @@ export class IssueUtils {
             Majeur: 'Major',
             Mineur: 'Minor'
         };
-        const match = this.issue.body.match(/\*\*criticité\*\*[^?]*\?[ ]?: ([^\n]*)/m);
-        return match ? criticityMap[match[1].trim()] : undefined;
+        const match = this.issue.body.match(/\*\*Criticality\*\*[^?]*\?[ ]?: ([^\n]*)/m);
+        let criticality = match ? match[1].trim() : undefined;
+        console.log('found criticality', criticality);
+        if (!criticality) {
+            criticality = IssueCriticality.MINOR;
+        }
+        return criticality;
     }
 }

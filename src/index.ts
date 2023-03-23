@@ -30,30 +30,42 @@ async function getProject(octokit: InstanceType<typeof GitHub>, owner: string): 
 }
 
 async function getIssue(octokit: InstanceType<typeof GitHub>, owner: string, repo: string, issue_number: number): Promise<GithubIssue> {
-    const res: GraphQlQueryResponseData = await octokit.graphql(` query {
-        organization(login: "${owner}") {
-            repository(name: "${repo}") {
-                name
-                id
-                issue(number: ${issue_number}) {
+    const res: GraphQlQueryResponseData = await octokit.graphql(` 
+        query getIssue($repo: String!, $owner: String!, $issue_number: Int!) { 
+            organization(login: $owner) {
+                repository(name: $repo) {
+                    name
                     id
-                    title
-                    body
-                    labels(first: 20) {
-                        nodes {
-                            name
-                            id
+                    issue(number: $issue_number) {
+                        id
+                        title
+                        body
+                        trackedInIssues(first: 100) {
+                            nodes {
+                                id
+                            }
+                        }
+                        labels(first: 20) {
+                            nodes {
+                                name
+                                id
+                            }
                         }
                     }
                 }
             }
         }
-    }`);
+    `, {
+        owner,
+        repo,
+        issue_number
+    });
     return {
         id: res.organization.repository.issue.id,
         body: res.organization.repository.issue.body,
         title: res.organization.repository.issue.title,
-        labels: res.organization.repository.issue.labels.nodes
+        labels: res.organization.repository.issue.labels.nodes,
+        trackedInIssues: res.organization.repository.issue.trackedInIssues.nodes
     };
 }
 
@@ -70,8 +82,9 @@ const main = async () => {
         const octokit = github.getOctokit(inputs.token);
         const project = await getProject(octokit, inputs.owner);
         const issue = await getIssue(octokit, inputs.owner, inputs.repo, inputs.issue_number);
+        console.log('issue', JSON.stringify(issue));
         const issueUtils = new IssueUtils(octokit, project.id, issue);
-        await issueUtils.addIssueToProject();
+        await issueUtils.addIssueToProjectAndFillFields();
     } catch (error) {
         core.setFailed(error.message);
     }

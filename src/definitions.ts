@@ -8,6 +8,7 @@ export type GithubIssue = {
     title: string;
     body: string;
     labels: GithubLabel[];
+    trackedInIssues: GithubIssue[];
 }
 
 export type ProjectFieldValue = { date: string } | { iterationId: string } | { number: number } | { singleSelectOptionId: string } | { text: string };
