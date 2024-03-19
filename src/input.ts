@@ -1,5 +1,5 @@
 import * as core from '@actions/core';
-require('dotenv').config();
+import 'dotenv/config'
 
 interface IInput {
     owner: string;
@@ -9,7 +9,8 @@ interface IInput {
 }
 
 export function getInput(): IInput {
-    if (process.env.NODE_ENV === 'dev') {
+    console.log('process.env.NODE_ENV', process.env.NODE_ENV);
+    if (process.env.NODE_ENV === 'dev' || process.env.NODE_ENV === 'test') {
         return {
             owner: process.env.owner,
             repo: process.env.repo,
